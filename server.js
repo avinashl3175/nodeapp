@@ -9,12 +9,16 @@ var app = express();
 //http://expressjs.com/en/guide/using-middleware.html
 app.use(express.static(__dirname + "/public"));
 app.use(bodyParser.json());
+//Middleware: To be executed in between request and response
 app.use(function(req, res, next) {
-	//http://enable-cors.org/server_expressjs.html
-	//Enabling CORS
+    //http://enable-cors.org/server_expressjs.html
+
+	//Enabling CORS -Starts
 	res.header("Access-Control-Allow-Origin", "*");
 	res.header("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT");
 	res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, contentType,Content-Type, Accept, Authorization");
+    //Enabling CORS -Starts
+
 	//User Authentication -Starts
 	var response = {};
 	try { 
@@ -39,11 +43,6 @@ app.use(function(req, res, next) {
 	//User Authentication -Ends
 });
 
-//Error-handling middleware
-app.use(function (err, req, res, next) {
-  console.error(err.stack)
-  res.status(500).send('Something broke!')
-})
 
 //Setting up server
 var server = app.listen(process.env.PORT || appConfig.port, function () {
@@ -60,13 +59,7 @@ const _authToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ2IjowLCJpYXQiOjE0ODA
 
 //http://expressjs.com/en/guide/database-integration.html
 //Initiallising my sql connection string -Starts
- // var connection = mysql.createConnection({
-     // host: appConfig.dbHost,
-     // user: appConfig.dbUserName,
-     // password: appConfig.dbPassword,
-     // database: appConfig.dbName
- // });
- 
+  
  //http://stackoverflow.com/questions/20210522/nodejs-mysql-error-connection-lost-the-server-closed-the-connection
  var db_config = {
 	host: appConfig.dbHost,
@@ -111,7 +104,7 @@ handleDisconnect();
  var saveQuery = function (request) {
      console.log('Inside saveQuery()');
      var response = {};
-     response.query = "insert into "+ request.params.table + "( ";
+     response.query = "INSERT INTO " + request.params.table.toUpperCase() + "( ";
      var i = 0;
      //setting columns names needs for inserting into given table
      for (var data in request.body) {
@@ -135,7 +128,7 @@ handleDisconnect();
      console.log('Inside updateQuery()');
      try{
          var response = {};
-         response.query = "UPDATE " + request.params.table + " SET ";
+         response.query = "UPDATE " + request.params.table.toUpperCase() + " SET ";
          var i = 0;
          for (var data in request.body) {
              i++;
@@ -152,13 +145,30 @@ handleDisconnect();
      }   
  }
 
+ //Function to form insert query based on request body parameters
+ var searchQuery = function (request) {
+     console.log('Inside searchQuery()');
+     var response = {};
+     response.query = "SELECT * FROM " + request.params.table.toUpperCase() + " WHERE 1=1 ";
+     var i = 0;
+     //setting columns names needs for inserting into given table
+     for (var data in request.body) {
+         i++;
+         response.query = response.query + ' AND ' + data + ((data == 'Name' || data == 'FirstName' || data == 'Email') ? (' LIKE ' + '"%' + request.body[data] + '%"') : ('=') + '"' + request.body[data] + '"');
+     }
+     response.query = response.query + ' ORDER BY DateCreated DESC';
+     return response;
+ }
+
 //Function to form SQL Query
  var createQuery = function (request) {
      console.log('Inside createQuery()' + JSON.stringify(request));
      var response = {};
-     try {       
+     try {
          if (request.method == 'GET') {
-             response.query = 'SELECT * FROM ' + request.params.table;
+             //Get ALL
+             response.query = 'SELECT * FROM ' + request.params.table.toUpperCase();
+             //Get BY ID
              if (request.params.id) {
                  response.query = response.query + ' WHERE Id = ' + request.params.id;
              }
@@ -166,6 +176,9 @@ handleDisconnect();
          else if (request.method == 'POST') {
              if (request.apiUrl.match('authentication')) {
                  response.query = 'SELECT * FROM USER WHERE Email = ' + '"' + request.body.userName + '"' + ' AND Password = ' + '"' + request.body.password + '"';
+             }
+             else if (request.apiUrl.match('search')) {
+                 response.query = searchQuery(request).query;
              }
              else {
                  response.query = saveQuery(request).query;
@@ -175,7 +188,7 @@ handleDisconnect();
              response.query = updateQuery(request).query;
          }
          else if (request.method == 'DELETE') {
-             response.query = 'DELETE FROM ' + request.params.table + ' WHERE Id = ' + request.params.id;
+             response.query = 'DELETE FROM ' + request.params.table.toUpperCase() + ' WHERE Id = ' + request.params.id;
          }
          return response;
      }
@@ -266,7 +279,8 @@ handleDisconnect();
              }
 			 if (req.path.match('authentication') && _response.Records.length==0) {
                  //_authToken = _response.Records[0].Code;
-                 _response.Message = "Invalid UserName or Password";
+			     _response.Message = "Invalid UserName or Password";
+			     _response.Success = false;
              }
              if ((req.path.match('user') || req.path.match('authentication')) && _response.Records.length) {
                  for (var i = 0; i < _response.Records.length; i++) {
@@ -291,10 +305,10 @@ handleDisconnect();
 
 //Generic APIs - Starts
 
-//Generic API to do GetAll operation of any table -- GETALL
+//Generic API to do GetAll operation of any table -- GET ALL
  app.get("/api/:table", [databaseQuery, responseHandler]);
 
-//Generic API to do GetById operation of any table --GETBYID
+//Generic API to do GetById operation of any table --GET BY ID
  app.get("/api/:table/:id", [databaseQuery, responseHandler]);
 
  //Generic API to do Save operation of any table --SAVE
@@ -305,6 +319,10 @@ handleDisconnect();
 
 //Generic API to do Hard Delete operation of any table by Id --DELETE
  app.delete("/api/:table/:id", [databaseQuery, responseHandler]);
+
+//Generic API to do Search By Attributes operation of any table by Id --Search
+ app.post("/api/search/:table", [databaseQuery, responseHandler]);
+
 
 //Generic APIs - Ends
 
