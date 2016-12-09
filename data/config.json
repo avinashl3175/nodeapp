@@ -5,5 +5,6 @@
     "dbUserName": "a14a35_nodejs",
     "dbPassword": "Power@1234",
     "recordReterived_Success_Message": "Executed Successfully",
-    "recordReterived_Failed_Message" :  "Execution Failure"
+    "recordReterived_Failed_Message": "Execution Failure",
+    "authToken": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ2IjowLCJpYXQiOjE0ODA2NjE0NDEsImQiOnsidWlkIjoiMTA4IiwiRmlyc3ROYW1lIjoiV"
 }

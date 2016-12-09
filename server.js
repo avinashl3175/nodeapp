@@ -55,7 +55,7 @@ var _response = {};
 //To hold request object
 var _request = {};
 //To Store AuthToken
-const _authToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ2IjowLCJpYXQiOjE0ODA2NjE0NDEsImQiOnsidWlkIjoiMTA4IiwiRmlyc3ROYW1lIjoiV';
+const _authToken = appConfig.authToken;
 
 //http://expressjs.com/en/guide/database-integration.html
 //Initiallising my sql connection string -Starts
