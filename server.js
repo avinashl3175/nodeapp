@@ -12,7 +12,6 @@ app.use(bodyParser.json());
 //Middleware: To be executed in between request and response
 app.use(function(req, res, next) {
     //http://enable-cors.org/server_expressjs.html
-
 	//Enabling CORS -Starts
 	res.header("Access-Control-Allow-Origin", "*");
 	res.header("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT");
@@ -145,18 +144,36 @@ handleDisconnect();
      }   
  }
 
- //Function to form insert query based on request body parameters
+ //Function to form search query based on request body parameters
  var searchQuery = function (request) {
      console.log('Inside searchQuery()');
      var response = {};
      response.query = "SELECT * FROM " + request.params.table.toUpperCase() + " WHERE 1=1 ";
      var i = 0;
-     //setting columns names needs for inserting into given table
+     //setting where condition based on columns names for the given table
      for (var data in request.body) {
          i++;
          response.query = response.query + ' AND ' + data + ((data == 'Name' || data == 'FirstName' || data == 'Email') ? (' LIKE ' + '"%' + request.body[data] + '%"') : ('=') + '"' + request.body[data] + '"');
      }
      response.query = response.query + ' ORDER BY DateCreated DESC';
+     return response;
+ }
+ 
+  //Function to form pagination search query based on request body parameters
+ var paginationQuery = function (request) {
+     console.log('Inside paginationQuery()'+ JSON.stringify(request));
+     var response = {};
+	 var whereCondition = " WHERE 1=1 ";
+     response.query = "SELECT *, null as TotalRecords FROM " + request.params.table.toUpperCase();
+     var i = 0;
+     //setting where condition based on columns names for the given table
+     for (var data in request.body) {
+         i++;
+         whereCondition = whereCondition + ' AND ' + data + ((data == 'Name' || data == 'FirstName' || data == 'Email') ? (' LIKE ' + '"%' + request.body[data] + '%"') : ('=') + '"' + request.body[data] + '"');
+     } 	
+	 response.query = response.query + whereCondition + ' LIMIT ' + request.queryStrings.limit + ' OFFSET ' + ((parseInt(request.queryStrings.page)- 1) *  parseInt(request.queryStrings.limit)).toString();
+	 response.query = response.query + ' UNION SELECT * , COUNT(*) as TotalRecords FROM ' + request.params.table.toUpperCase() + whereCondition; 
+     response.query = response.query + ' ORDER BY TotalRecords DESC';
      return response;
  }
 
@@ -179,6 +196,9 @@ handleDisconnect();
              }
              else if (request.apiUrl.match('search')) {
                  response.query = searchQuery(request).query;
+             }
+			 else if (request.apiUrl.match('paged')) {
+                 response.query = paginationQuery(request).query;
              }
              else {
                  response.query = saveQuery(request).query;
@@ -236,6 +256,7 @@ handleDisconnect();
          request.body = req.body;
          request.method = req.method;
          request.header = req.headers;
+		 request.queryStrings = req.query;
          //Getting Query to be executed
          var query = createQuery(request).query;
          console.log(query);
@@ -287,6 +308,33 @@ handleDisconnect();
                      delete _response.Records[i].Password;
                  }
              }
+			 //Handling Response for server side pagination api call
+			 if (req.path.match('paged')) {
+				//Getting total records count
+				_response.TotalRecords =  _response.Records[0].TotalRecords;
+				//checking whether current page records count and total number of records count not equals zero
+			    if(_response.Records.length > 0 && _response.TotalRecords != 0){					
+					var PageSize = parseInt(req.query.limit);
+					//If limit is more than total number of records
+					if(PageSize > _response.TotalRecords){
+						_response.TotalPages = 1;
+					}	
+					else{
+						_response.TotalPages  = ((_response.TotalRecords % PageSize == 0 ) ? (_response.TotalRecords / PageSize) : ((parseInt(_response.TotalRecords / PageSize) + 1))) ;
+					}
+					//removing 1st object from array , since it is taken for count purpose
+					_response.Records.slice(1, _response.Records.length);
+					//removing TotalRecords Property from each object of records array ,since it is taken for count purpose
+					for (var i = 0; i < _response.Records.length; i++) {
+						delete _response.Records[i].TotalRecords;
+					}
+				}
+				else{
+					_response.TotalRecords =  0;
+					_response.TotalPages  = 0;
+					_response.Records = [];
+				}					
+             }
          }        
          res.send(_response);
      }
@@ -320,9 +368,11 @@ handleDisconnect();
 //Generic API to do Hard Delete operation of any table by Id --DELETE
  app.delete("/api/:table/:id", [databaseQuery, responseHandler]);
 
-//Generic API to do Search By Attributes operation of any table by Id --Search
+//Generic API to do Search By Attributes operation of any table --Search
  app.post("/api/search/:table", [databaseQuery, responseHandler]);
-
+ 
+//Generic API to do Server Side Pagination Search By Attributes operation of any table --Get Paged
+ app.post("/api/paged/:table", [databaseQuery, responseHandler]);
 
 //Generic APIs - Ends
 
